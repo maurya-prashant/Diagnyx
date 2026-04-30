@@ -1,66 +1,42 @@
-from services.llm_provider import call_llm
+
 import json
-import re
-
-
-def clean_llm_json(text: str) -> str:
-    # remove markdown fences
-    text = re.sub(r"```json|```", "", text).strip()
-    return text
-
+from services.llm_provider import call_llm
 
 def synthesis_node(state):
-
+    extraction = state.get("extraction_result")
+    
+    # We can now build the final JSON programmatically for the structured parts
+    # and let the LLM handle the natural language summary.
+    
     prompt = f"""
-You are a medical report synthesis engine.
-
-Return ONLY valid JSON. No markdown. No explanation. No extra text.
-
-JSON FORMAT:
-{{
-  "patient_info": {{
-    "name": "",
-    "age": "",
-    "gender": ""
-  }},
-  "symptoms": [],
-  "lab_results": {{}},
-  "root_causes": [],
-  "diet": [],
-  "summary": ""
-}}
-
-DATA:
-Extraction:
-{state["extraction_result"][:1000]}
-
-Explanation:
-{state["explanation_result"][:500]}
-
-Rootcause:
-{state["rootcause_result"][:500]}
-
-Diet:
-{state["diet_result"][:500]}
-"""
-
+    Create a final patient-friendly summary of the following findings:
+    
+    Labs: {extraction.lab_results}
+    Root Causes: {state.get('rootcause_result')}
+    Diet: {state.get('diet_result')}
+    
+    Return ONLY a JSON object with:
+    {{
+      "summary": "A human-readable explanation of what is happening with the patient's health",
+      "key_takeaways": ["list of 3 most important points"]
+    }}
+    """
+    
     res = call_llm(prompt)
-
-    cleaned = clean_llm_json(res)
-
+    # Clean and parse
     try:
-        result = json.loads(cleaned)
-    except Exception as e:
-        # STRICT fallback (don’t break schema)
-        result = {
-            "patient_info": {"name": "", "age": "", "gender": ""},
-            "symptoms": [],
-            "lab_results": {},
-            "root_causes": [],
-            "diet": [],
-            "summary": cleaned[:500]
-        }
+        summary_data = json.loads(res.replace("```json", "").replace("```", "").strip())
+    except:
+        summary_data = {"summary": "Analysis complete.", "key_takeaways": []}
 
-    return {
-        "final_report": result
+    # Merge Pydantic data with LLM summary
+    final_report = {
+        "patient_info": {}, # You can add patient extraction to ExtractionResult model
+        "lab_results": [lab.dict() for lab in extraction.lab_results],
+        "root_causes": state.get("rootcause_result"),
+        "diet": state.get("diet_result"),
+        "summary": summary_data.get("summary"),
+        "takeaways": summary_data.get("key_takeaways")
     }
+
+    return {"final_report": final_report}

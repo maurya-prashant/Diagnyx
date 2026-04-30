@@ -1,26 +1,22 @@
-from services.llm_provider import call_llm
+# backend/nodes/extraction_node.py
+
+from services.llm_provider import call_llm_structured
+from models.medical import ExtractionResult
 
 def extraction_node(state):
-    text = state["raw_text"][:2000]
+    text = state.get("raw_text", "")
 
     prompt = f"""
-Extract ALL medical data.
+    You are a medical data extraction specialist. 
+    Extract all lab results, medications, and diagnoses from the following report.
+    
+    If a lab value is abnormal, ensure the 'status' field is marked as 'High', 'Low', or 'Abnormal'.
+    
+    REPORT TEXT:
+    {text}
+    """
 
-Return JSON with:
-- all lab values
-- abnormal flags
-- diagnosis (if present)
-- medications
+    # Use the new structured helper
+    result = call_llm_structured(prompt, ExtractionResult)
 
-DO NOT skip anything.
-
-{text}
-"""
-
-    res = call_llm(prompt)
-
-    result = res
-
-    return {
-        "extraction_result": result
-    }
+    return {"extraction_result": result}

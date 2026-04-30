@@ -1,152 +1,244 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 const ACCEPTED_TYPES = ".pdf,.docx,.png,.jpg,.jpeg,.txt";
 
 const statusCopy = {
-  idle: "Ready when you are.",
-  uploading: "Uploading your report...",
-  analyzing: "Analyzing through the Diagnyx pipeline...",
-  success: "Analysis complete.",
-  error: "Something went wrong.",
+  idle: "Ready when you are",
+  uploading: "Receiving your report",
+  analyzing: "Reading the details",
+  success: "Review ready",
+  error: "Needs another try",
 };
 
-function formatLabel(value) {
-  return value
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+const statusHint = {
+  idle: "Upload a lab report or prescription and Diagnyx will turn it into a clearer review.",
+  uploading: "Keeping the file intact while it is handed to the clinical workflow.",
+  analyzing: "Checking the report, extracting labs, and preparing a patient-friendly summary.",
+  success: "Your report has been organized into findings, context, and next-step nutrition guidance.",
+  error: "Something got in the way. You can choose the file again and retry.",
+};
+
+function cx(...classes) {
+  return classes.filter(Boolean).join(" ");
 }
 
-function prettyValue(value) {
-  if (value === null || value === undefined || value === "") {
-    return "Not available";
-  }
-
-  if (Array.isArray(value)) {
-    return value.length ? value.join(", ") : "Not available";
-  }
-
-  if (typeof value === "object") {
-    return JSON.stringify(value, null, 2);
-  }
-
-  return String(value);
+function formatFileSize(bytes) {
+  if (!bytes) return "";
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function parseResponsePayload(raw) {
-  if (!raw) {
-    return {};
-  }
-
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return { message: raw };
-  }
+function splitLines(text = "") {
+  return text
+    .split(/\n|(?=\d+\.\s)/)
+    .map((line) => line.replace(/^\d+\.\s*/, "").trim())
+    .filter(Boolean);
 }
 
-function JsonBlock({ data }) {
+function Section({ eyebrow, title, children, className = "" }) {
   return (
-    <pre className="json-block">
-      <code>{JSON.stringify(data, null, 2)}</code>
-    </pre>
-  );
-}
-
-function ResultSection({ title, children, className = "" }) {
-  return (
-    <section className={`result-card ${className}`.trim()}>
-      <div className="section-heading">
-        <h3>{title}</h3>
+    <section className={cx("panel", className)}>
+      <div className="panel-head">
+        <div>
+          {eyebrow && <p className="eyebrow">{eyebrow}</p>}
+          <h3>{title}</h3>
+        </div>
       </div>
-      {children}
+      <div className="panel-body">{children}</div>
     </section>
   );
 }
 
-function AcceptedReport({ report }) {
-  const patientEntries = Object.entries(report?.patient_info || {});
-  const symptoms = Array.isArray(report?.symptoms) ? report.symptoms : [];
-  const rootCauses = Array.isArray(report?.root_causes) ? report.root_causes : [];
-  const diet = Array.isArray(report?.diet) ? report.diet : [];
+function LabTable({ labs }) {
+  if (!Array.isArray(labs) || labs.length === 0) {
+    return <p className="soft-note">No structured lab values were returned for this report.</p>;
+  }
 
   return (
-    <div className="results-grid">
-      <ResultSection title="Patient Snapshot">
-        <div className="stats-grid">
-          {patientEntries.length ? (
-            patientEntries.map(([key, value]) => (
-              <article className="stat-card" key={key}>
-                <span>{formatLabel(key)}</span>
-                <strong>{prettyValue(value)}</strong>
-              </article>
-            ))
-          ) : (
-            <p className="muted">No patient details were extracted.</p>
-          )}
+    <div className="table-wrapper">
+      <table className="medical-table">
+        <thead>
+          <tr>
+            <th>Marker</th>
+            <th>Result</th>
+            <th>Unit</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {labs.map((lab, index) => {
+            const status = (lab.status || "normal").toLowerCase();
+            const isFlagged = ["high", "low", "abnormal"].includes(status);
+
+            return (
+              <tr key={`${lab.test}-${index}`} className={isFlagged ? "row-flagged" : ""}>
+                <td>
+                  <strong>{lab.test || "Unknown marker"}</strong>
+                </td>
+                <td>{lab.value ?? "Not found"}</td>
+                <td>{lab.unit || "-"}</td>
+                <td>
+                  <span className={cx("status-pill", status)}>{lab.status || "Normal"}</span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function InsightCard({ cause, index }) {
+  const isObject = typeof cause === "object" && cause !== null;
+  const title = isObject ? cause.condition || `Observation ${index + 1}` : `Observation ${index + 1}`;
+  const text = isObject ? cause.reasoning || cause.summary || "" : cause;
+  const severity = isObject ? cause.severity || "Moderate" : "Moderate";
+
+  return (
+    <article className="insight-card">
+      <div className="insight-topline">
+        <span className={cx("severity-badge", severity.toLowerCase())}>{severity}</span>
+        <span className="insight-count">{String(index + 1).padStart(2, "0")}</span>
+      </div>
+      <h4>{title}</h4>
+      <p>{text}</p>
+    </article>
+  );
+}
+
+function NutritionDashboard({ dietText }) {
+  if (!dietText) return <p className="soft-note">No personalized nutrition guidance was returned.</p>;
+
+  const lines = splitLines(dietText);
+  const avoid = lines.filter((line) => /avoid|limit|do not|reduce/i.test(line));
+  const include = lines.filter((line) => /include|increase|recommended|choose|add/i.test(line));
+  const general = lines.filter((line) => !avoid.includes(line) && !include.includes(line));
+
+  return (
+    <div className="nutrition-grid">
+      <div className="nutrition-lane avoid">
+        <p className="lane-title">Avoid or limit</p>
+        {avoid.length ? avoid.map((item, index) => <p key={index}>{item}</p>) : <p>No avoid list found.</p>}
+      </div>
+      <div className="nutrition-lane include">
+        <p className="lane-title">Lean into</p>
+        {include.length ? include.map((item, index) => <p key={index}>{item}</p>) : <p>No include list found.</p>}
+      </div>
+      {general.length > 0 && (
+        <div className="nutrition-lane general">
+          <p className="lane-title">Notes</p>
+          {general.map((item, index) => <p key={index}>{item}</p>)}
         </div>
-      </ResultSection>
+      )}
+    </div>
+  );
+}
 
-      <ResultSection title="Summary" className="wide-card">
-        <p className="body-copy">{report?.summary || "No summary was generated."}</p>
-      </ResultSection>
+function LoadingState({ status }) {
+  return (
+    <div className="loading-card">
+      <div className="orbital-loader" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
+      <div>
+        <p className="eyebrow">In progress</p>
+        <h3>{statusCopy[status]}</h3>
+        <p>{statusHint[status]}</p>
+      </div>
+    </div>
+  );
+}
 
-      <ResultSection title="Symptoms">
-        {symptoms.length ? (
-          <div className="pill-list">
-            {symptoms.map((item, index) => (
-              <span className="pill" key={`${item}-${index}`}>
-                {item}
-              </span>
-            ))}
+function EmptyState() {
+  return (
+    <div className="empty-state">
+      <div className="empty-mark">Dx</div>
+      <h2>A clearer report starts here.</h2>
+      <p>
+        Choose a medical report and Diagnyx will organize the important parts into labs,
+        possible patterns, plain-language context, and nutrition guidance.
+      </p>
+    </div>
+  );
+}
+
+function AcceptedReport({ report }) {
+  const rootCauses = useMemo(() => {
+    if (Array.isArray(report?.root_causes)) return report.root_causes;
+    return splitLines(report?.root_causes || "");
+  }, [report?.root_causes]);
+
+  const flaggedLabs = useMemo(() => {
+    if (!Array.isArray(report?.lab_results)) return 0;
+    return report.lab_results.filter((lab) =>
+      ["high", "low", "abnormal"].includes((lab.status || "").toLowerCase())
+    ).length;
+  }, [report?.lab_results]);
+
+  return (
+    <div className="report-container">
+      <section className="result-hero">
+        <div>
+          <p className="eyebrow">Report review</p>
+          <h2>Here is the clearer version.</h2>
+          <p>
+            Diagnyx grouped the clinical details so the important signals are easier to scan
+            and discuss with a qualified professional.
+          </p>
+        </div>
+        <div className="result-metrics" aria-label="Report metrics">
+          <div>
+            <strong>{report?.lab_results?.length || 0}</strong>
+            <span>lab markers</span>
           </div>
-        ) : (
-          <p className="muted">No symptoms listed in the synthesized output.</p>
-        )}
-      </ResultSection>
+          <div>
+            <strong>{flaggedLabs}</strong>
+            <span>flagged</span>
+          </div>
+          <div>
+            <strong>{rootCauses.length}</strong>
+            <span>patterns</span>
+          </div>
+        </div>
+      </section>
 
-      <ResultSection title="Possible Root Causes">
-        {rootCauses.length ? (
-          <ul className="clean-list">
-            {rootCauses.map((item, index) => (
-              <li key={`${item}-${index}`}>{item}</li>
-            ))}
-          </ul>
-        ) : (
-          <p className="muted">No root causes were returned.</p>
-        )}
-      </ResultSection>
+      <div className="report-grid">
+        <div className="report-main">
+          <Section eyebrow="Plain language" title="Summary">
+            <p className="summary-text">{report?.summary || "No summary was generated."}</p>
+            {Array.isArray(report?.takeaways) && report.takeaways.length > 0 && (
+              <div className="takeaways-wrapper">
+                {report.takeaways.map((takeaway, index) => (
+                  <span key={index} className="takeaway-chip">{takeaway}</span>
+                ))}
+              </div>
+            )}
+          </Section>
 
-      <ResultSection title="Diet Guidance" className="wide-card">
-        {diet.length ? (
-          <ul className="clean-list">
-            {diet.map((item, index) => (
-              <li key={`${item}-${index}`}>{item}</li>
-            ))}
-          </ul>
-        ) : (
-          <p className="muted">No diet recommendations were returned.</p>
-        )}
-      </ResultSection>
-    </div>
-  );
-}
+          <Section eyebrow="Evidence" title="Lab results">
+            <LabTable labs={report?.lab_results} />
+          </Section>
+        </div>
 
-function RejectedReport({ result }) {
-  return (
-    <div className="rejected-panel">
-      <span className="status-badge rejected">Rejected</span>
-      <h3>This file does not appear to be a medical report.</h3>
-      <p>{result?.reason || "The backend rejected this document."}</p>
-    </div>
-  );
-}
+        <aside className="report-side">
+          <Section eyebrow="Patterns" title="Possible root causes">
+            <div className="insights-stack">
+              {rootCauses.length ? (
+                rootCauses.map((cause, index) => <InsightCard key={index} cause={cause} index={index} />)
+              ) : (
+                <p className="soft-note">No root-cause notes were returned.</p>
+              )}
+            </div>
+          </Section>
 
-function ErrorPanel({ error }) {
-  return (
-    <div className="rejected-panel error-panel">
-      <span className="status-badge error">Error</span>
-      <h3>The upload could not be processed.</h3>
-      <p>{error}</p>
+          <Section eyebrow="Food guidance" title="Nutrition">
+            <NutritionDashboard dietText={report?.diet} />
+          </Section>
+        </aside>
+      </div>
     </div>
   );
 }
@@ -155,39 +247,29 @@ export default function App() {
   const inputRef = useRef(null);
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState("idle");
-  const [dragging, setDragging] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
 
-  const hasResult = Boolean(result);
+  const isWorking = status === "uploading" || status === "analyzing";
 
-  function handleSelectedFile(nextFile) {
-    if (!nextFile) {
-      return;
-    }
-
+  function chooseFile(nextFile) {
     setFile(nextFile);
     setResult(null);
     setError("");
     setStatus("idle");
   }
 
-  function onFileChange(event) {
-    handleSelectedFile(event.target.files?.[0]);
+  function handleDrop(event) {
+    event.preventDefault();
+    setIsDragging(false);
+    chooseFile(event.dataTransfer.files?.[0]);
   }
 
-  function onDrop(event) {
+  async function handleAnalysis(event) {
     event.preventDefault();
-    setDragging(false);
-    handleSelectedFile(event.dataTransfer.files?.[0]);
-  }
-
-  async function handleSubmit(event) {
-    event.preventDefault();
-
     if (!file) {
-      setError("Choose a report file before starting the analysis.");
-      setStatus("error");
+      setError("Choose a report first so there is something to review.");
       return;
     }
 
@@ -198,197 +280,106 @@ export default function App() {
     setError("");
     setResult(null);
 
-    let timer;
-
     try {
-      timer = window.setTimeout(() => {
-        setStatus("analyzing");
-      }, 450);
+      const timer = window.setTimeout(() => setStatus("analyzing"), 500);
+      const response = await fetch("/api/upload", { method: "POST", body: formData });
+      window.clearTimeout(timer);
 
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      const raw = await response.text();
-      const data = parseResponsePayload(raw);
-
-      if (!response.ok) {
-        throw new Error(data?.message || "Server returned an unexpected response.");
-      }
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.message || "The report could not be analyzed.");
 
       setResult(data);
       setStatus("success");
-    } catch (submitError) {
-      setError(submitError.message || "Upload failed.");
+    } catch (err) {
+      setError(err.message || "The report could not be analyzed.");
       setStatus("error");
-    } finally {
-      window.clearTimeout(timer);
     }
   }
 
-  const resultTitle =
-    result?.status === "accepted"
-      ? "Report Insights"
-      : result?.status === "rejected"
-        ? "Review Outcome"
-        : "Latest Response";
-
   return (
     <div className="app-shell">
-      <div className="ambient ambient-one" />
-      <div className="ambient ambient-two" />
-
-      <main className="page">
-        <section className="hero fade-up">
-          <div className="hero-copy">
-            <span className="eyebrow">AI-assisted report interpretation</span>
-            <h1>Upload a medical report and get a clean, guided breakdown.</h1>
-            <p className="hero-text">
-              Diagnyx turns report files into a structured summary with plain-language
-              explanation, possible root causes, and diet guidance from the backend
-              workflow.
-            </p>
+      <header className="app-header">
+        <div className="brand">
+          <button className="brand-mark" type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+            Dx
+          </button>
+          <div>
+            <h1>Diagnyx</h1>
+            <p>Medical reports, translated into calmer language.</p>
           </div>
+        </div>
+        <div className={cx("system-status", status)}>
+          <span className="status-dot" />
+          <span>{statusCopy[status]}</span>
+        </div>
+      </header>
 
-          <div className="hero-panel">
-            <div className="glass-card">
-              <div className="mini-stat">
-                <span>Supported</span>
-                <strong>PDF, DOCX, JPG, PNG, TXT</strong>
-              </div>
-              <div className="mini-stat">
-                <span>Pipeline</span>
-                <strong>Ingest, Gate, Extract, Explain, Synthesize</strong>
-              </div>
-              <div className="mini-stat">
-                <span>Mode</span>
-                <strong>{statusCopy[status]}</strong>
-              </div>
-            </div>
+      <main className="app-content">
+        <section className="intro-band">
+          <div>
+            <p className="eyebrow">AI-assisted report review</p>
+            <h2>Bring the report. Leave with a clearer next conversation.</h2>
+            <p>{statusHint[status]}</p>
           </div>
-        </section>
-
-        <section className="workspace fade-up">
-          <form className="upload-panel" onSubmit={handleSubmit}>
-            <div className="panel-head">
-              <div>
-                <span className="eyebrow">Upload</span>
-                <h2>Start a new analysis</h2>
-              </div>
-              <span
-                className={`status-badge ${
-                  status === "success"
-                    ? "success"
-                    : status === "error"
-                      ? "error"
-                      : status === "uploading" || status === "analyzing"
-                        ? "busy"
-                        : ""
-                }`.trim()}
-              >
-                {status}
-              </span>
-            </div>
-
+          <form className="upload-panel" onSubmit={handleAnalysis}>
             <label
-              className={`dropzone ${dragging ? "dragging" : ""} ${file ? "has-file" : ""}`.trim()}
+              className={cx("dropzone", file && "has-file", isDragging && "is-dragging")}
               onDragOver={(event) => {
                 event.preventDefault();
-                setDragging(true);
+                setIsDragging(true);
               }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={onDrop}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={handleDrop}
             >
               <input
                 ref={inputRef}
                 type="file"
                 accept={ACCEPTED_TYPES}
-                onChange={onFileChange}
+                onChange={(event) => chooseFile(event.target.files?.[0])}
               />
-
-              <div className="dropzone-copy">
-                <div className="upload-icon" aria-hidden="true">
-                  <span />
-                </div>
-                <h3>{file ? file.name : "Drop your file here"}</h3>
-                <p>
-                  {file
-                    ? `${(file.size / 1024 / 1024).toFixed(2)} MB selected`
-                    : "Drag and drop a report, or browse from your device."}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => inputRef.current?.click()}
-              >
-                Choose file
-              </button>
+              <span className="upload-glyph">+</span>
+              <span className="drop-title">{file ? file.name : "Drop your report here"}</span>
+              <span className="drop-meta">
+                {file ? `${formatFileSize(file.size)} selected` : "PDF, DOCX, PNG, JPG, JPEG, or TXT"}
+              </span>
             </label>
 
-            <div className="panel-foot">
-              <p className="helper-text">
-                Your file is sent to the FastAPI backend and analyzed through the
-                LangGraph workflow documented in the project README.
-              </p>
-              <button
-                type="submit"
-                className="primary-button"
-                disabled={status === "uploading" || status === "analyzing"}
-              >
-                {status === "uploading" || status === "analyzing"
-                  ? "Processing..."
-                  : "Analyze report"}
+            <div className="upload-actions">
+              <button className="btn-secondary" type="button" onClick={() => inputRef.current?.click()}>
+                Choose file
+              </button>
+              {file && (
+                <button className="btn-ghost" type="button" onClick={() => chooseFile(null)}>
+                  Clear
+                </button>
+              )}
+              <button className="btn-primary" type="submit" disabled={isWorking}>
+                {isWorking ? "Reviewing..." : "Review report"}
               </button>
             </div>
           </form>
-
-          <aside className="notes-panel">
-            <div className="notes-card">
-              <span className="eyebrow">What you get</span>
-              <ul className="clean-list compact">
-                <li>Patient-friendly summary</li>
-                <li>Structured lab output</li>
-                <li>Possible root causes</li>
-                <li>Diet suggestions from the pipeline</li>
-              </ul>
-            </div>
-
-            <div className="notes-card soft">
-              <span className="eyebrow">Reminder</span>
-              <p className="body-copy small">
-                This interface is for assistive interpretation only and should not
-                replace clinical review.
-              </p>
-            </div>
-          </aside>
         </section>
 
-        <section className="results-panel fade-up">
-          <div className="panel-head">
-            <div>
-              <span className="eyebrow">Output</span>
-              <h2>{resultTitle}</h2>
-            </div>
-          </div>
-
-          {!hasResult && !error && (
-            <div className="empty-state">
-              <p>
-                Upload a file to see the synthesized report, rejection message, or
-                backend error details here.
-              </p>
+        <section className="results-section" aria-live="polite">
+          {error && (
+            <div className="notice error">
+              <strong>That did not work yet.</strong>
+              <span>{error}</span>
             </div>
           )}
 
-          {error && <ErrorPanel error={error} />}
-          {result?.status === "rejected" && <RejectedReport result={result} />}
+          {isWorking && <LoadingState status={status} />}
+
+          {result?.status === "rejected" && (
+            <div className="notice rejected">
+              <strong>This does not look like a medical report.</strong>
+              <span>{result.reason || "Try another file with clearer medical content."}</span>
+            </div>
+          )}
+
           {result?.status === "accepted" && <AcceptedReport report={result.report} />}
-          {result && result.status !== "accepted" && result.status !== "rejected" && !error && (
-            <JsonBlock data={result} />
-          )}
+
+          {!result && !error && !isWorking && <EmptyState />}
         </section>
       </main>
     </div>

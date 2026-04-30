@@ -1,21 +1,22 @@
-from typing import TypedDict, Optional, Dict, Any
+# backend/graph/state.py
 
+from typing import TypedDict, Optional
+from models.medical import ExtractionResult, CriticResult
 
 class MedifyState(TypedDict, total=False):
-    # input
     file_path: str
     raw_text: str
-
-    # pipeline flags
     rejected: bool
     rejection_reason: str
+    
+    revision_count: int
+    critic_feedback: str
 
-    # agent outputs
-    gate_result: dict
-    extraction_result: dict
-    explanation_result: dict
-    rootcause_result: dict
-    diet_result: dict
-    critic_result: dict
+    # CHANGED: Now using Pydantic Models instead of strings
+    extraction_result: ExtractionResult  # From medical.py
+    explanation_result: str
+    rootcause_result: str # We can make a model for this too, but let's start here
+    diet_result: str
+    critic_result: CriticResult          # From medical.py
 
     final_report: dict
