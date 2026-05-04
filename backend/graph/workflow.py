@@ -43,7 +43,7 @@ builder.add_edge("extract", "rootcause")
 builder.add_edge("explain", "diet")
 builder.add_edge("rootcause", "diet")
 
-# NEW FLOW: Diet -> Safety -> Critic
+# Diet -> Safety -> Critic
 builder.add_edge("diet", "safety")
 builder.add_edge("safety", "critic")
 

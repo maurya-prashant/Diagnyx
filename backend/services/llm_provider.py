@@ -11,7 +11,7 @@ load_dotenv()
 MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"]
 
 def call_llm(prompt: str) -> str:
-    # ... (keep your existing call_llm code here) ...
+
     for model in MODELS:
         try:
             llm = ChatGroq(model=model, api_key=os.getenv("GROQ_API_KEY"))
