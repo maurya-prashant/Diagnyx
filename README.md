@@ -15,81 +15,107 @@ JSON report for the frontend to render.
 > treatment, or emergency care. Outputs should be reviewed by a qualified
 > healthcare professional.
 
+---
+
 ## Repository Map
 
 ```text
 Diagnyx/
 |-- README.md
 |-- backend/
-|   |-- .env                         # local secrets, ignored by backend/.gitignore
+|   |-- .env                          # local secrets, ignored by backend/.gitignore
 |   |-- .gitignore
-|   |-- main.py                      # FastAPI app and upload endpoint
-|   |-- requirements.txt             # Python dependencies
+|   |-- main.py                       # FastAPI app, CORS config, and upload endpoint
+|   |-- requirements.txt              # Python dependencies (pinned)
 |   |-- graph/
-|   |   |-- state.py                 # LangGraph state shape
-|   |   `-- workflow.py              # LangGraph node wiring and loop routing
+|   |   |-- state.py                  # LangGraph MedifyState (file_bytes / file_name based)
+|   |   `-- workflow.py               # LangGraph node wiring and critic loop routing
 |   |-- models/
-|   |   |-- medical.py               # Pydantic clinical and critic models
-|   |   `-- responses.py             # Pydantic response models
+|   |   |-- medical.py                # Pydantic clinical and critic models
+|   |   `-- responses.py              # Pydantic response models (RejectedResponse, AcceptedResponse)
 |   |-- nodes/
-|   |   |-- ingestion_node.py         # active file text extraction node
-|   |   |-- gate_node.py              # medical-report gate
-|   |   |-- extraction_node.py        # structured extraction
-|   |   |-- explanation_node.py       # patient-friendly explanation
-|   |   |-- rootcause_node.py         # possible root causes
-|   |   |-- diet_node.py              # diet guidance
-|   |   |-- safety_node.py            # rule-based safety check
+|   |   |-- ingestion_node.py         # In-memory text extraction (no disk writes)
+|   |   |-- gate_node.py              # Medical-report gate (LLM YES/NO)
+|   |   |-- extraction_node.py        # Structured clinical data extraction
+|   |   |-- explanation_node.py       # Patient-friendly explanation
+|   |   |-- rootcause_node.py         # Possible root causes
+|   |   |-- diet_node.py              # Diet guidance with critic-feedback loop
+|   |   |-- safety_node.py            # Rule-based contraindication safety check
 |   |   |-- critic_node.py            # LLM audit and revision feedback
-|   |   `-- synthesis_node.py         # final report assembly
+|   |   `-- synthesis_node.py         # Final report assembly
 |   |-- services/
-|   |   |-- document_ingestion.py     # alternate extraction helper using PyMuPDF
+|   |   |-- document_ingestion.py     # Alternate file-path-based extraction helper (PyMuPDF)
 |   |   |-- llm_provider.py           # Groq LLM calls and structured JSON parsing
-|   |   |-- safety_rules.py           # contraindication rules for diet safety
-|   |   `-- utils.py                  # safe JSON parsing helper
-|   `-- uploads/                     # local uploaded files, ignored by backend/.gitignore
+|   |   |-- safety_rules.py           # Contraindication rules for diet safety
+|   |   `-- utils.py                  # Safe JSON parsing helper
+|   `-- uploads/                      # Unused — ingestion is now in-memory
 `-- frontend/
     |-- index.html
     |-- package.json
     |-- package-lock.json
-    |-- vite.config.js               # dev server and /api proxy
+    |-- eslint.config.js
+    |-- vite.config.js                # Dev server, /api proxy, Tailwind CSS v4 plugin
+    |-- .env.production               # Production env vars (e.g. VITE_API_URL)
     `-- src/
-        |-- main.jsx                 # React entry point
-        |-- App.jsx                  # upload UI and results dashboard
-        `-- styles.css               # app styling
+        |-- main.jsx                  # React entry point
+        |-- App.jsx                   # Router — maps "/" to Landing
+        |-- App.css
+        |-- index.css
+        |-- assets/
+        |   |-- hero.png
+        |   |-- react.svg
+        |   `-- vite.svg
+        |-- components/
+        |   |-- Navbar.jsx            # Fixed top nav with mobile menu and "Get Started" CTA
+        |   |-- Hero.jsx              # Landing hero section
+        |   |-- Features.jsx          # Feature highlights section
+        |   |-- HowItWorks.jsx        # Step-by-step explainer section
+        |   |-- UseCases.jsx          # Use-case cards section
+        |   |-- TechStack.jsx         # Tech stack display section
+        |   |-- Testimonials.jsx      # Testimonials section
+        |   |-- Footer.jsx            # Site footer
+        |   `-- UploadModal.jsx       # Modal overlay: file upload + full results dashboard
+        `-- pages/
+            |-- Landing.jsx           # Landing page — composes all sections + UploadModal
+            `-- UploadApp.jsx         # Standalone full-page upload + results view
 ```
+
+---
 
 ## Tech Stack
 
 ### Frontend
 
-- React 18
-- Vite 5
-- Plain CSS
+- React 19
+- Vite 8
+- Tailwind CSS v4 (via `@tailwindcss/vite` plugin)
+- React Router DOM v7
 - Browser `fetch` API for uploads
 
 ### Backend
 
-- Python
-- FastAPI
+- Python 3.10+
+- FastAPI with CORS middleware
 - Uvicorn
 - LangGraph
-- LangChain
-- `langchain-groq`
-- Pydantic
+- LangChain + `langchain-groq`
+- Pydantic v2
 - `python-dotenv`
 - `python-multipart`
-- Pillow
-- Tesseract OCR through `pytesseract`
-- `python-docx`
-- PyMuPDF through `fitz` in `services/document_ingestion.py`
-- `pypdf` in the active `nodes/ingestion_node.py` PDF path
+- Pillow + `pytesseract` (image OCR)
+- `python-docx` (DOCX extraction)
+- `pypdf` (PDF extraction in active ingestion node)
+- PyMuPDF / `fitz` (alternate extraction helper only)
+- Groq SDK
+
+---
 
 ## Prerequisites
 
 - Python 3.10+
 - Node.js 18+
 - A Groq API key
-- Tesseract OCR installed locally if image uploads should be processed
+- Tesseract OCR installed locally (required for image uploads)
 
 The backend reads `GROQ_API_KEY` from `backend/.env`:
 
@@ -97,12 +123,13 @@ The backend reads `GROQ_API_KEY` from `backend/.env`:
 GROQ_API_KEY=your_groq_api_key_here
 ```
 
+---
+
 ## Local Setup
 
 ### Backend
 
-Run the backend from inside the `backend/` directory because imports are
-written relative to that folder.
+Run from inside the `backend/` directory — imports are relative to that folder.
 
 ```powershell
 cd backend
@@ -118,14 +145,7 @@ Backend URLs:
 - Swagger UI: `http://127.0.0.1:8000/docs`
 - ReDoc: `http://127.0.0.1:8000/redoc`
 
-Note: the current active PDF ingestion code imports `pypdf.PdfReader`, while
-`requirements.txt` currently lists `pymupdf`. If `pypdf` is not already
-available in your environment, install it or update the requirements before
-processing PDFs through `nodes/ingestion_node.py`.
-
 ### Frontend
-
-Run the frontend in a second terminal:
 
 ```powershell
 cd frontend
@@ -133,33 +153,31 @@ npm install
 npm run dev
 ```
 
-Frontend URL:
+Frontend URL: `http://127.0.0.1:5173`
 
-- App: `http://127.0.0.1:5173`
-
-The Vite server proxies `/api/*` to `http://127.0.0.1:8000`. For example,
-the frontend sends `POST /api/upload`, and Vite forwards it to
+The Vite dev server proxies `/api/*` to `http://127.0.0.1:8000`. For example,
+the frontend sends `POST /api/upload` and Vite forwards it to
 `POST http://127.0.0.1:8000/upload`.
+
+For production builds, set `VITE_API_URL` in `frontend/.env.production` to
+point at the deployed backend. The `UploadModal` reads this variable at
+runtime: `import.meta.env.VITE_API_URL ?? ''`.
+
+---
 
 ## API Reference
 
 ### `GET /`
 
-Returns a simple status payload:
-
 ```json
-{
-  "message": "MEDIFY LangGraph running"
-}
+{ "message": "Diagynx API running" }
 ```
 
 ### `POST /upload`
 
 Uploads one report file using `multipart/form-data`.
 
-Form field:
-
-- `file`
+Form field: `file`
 
 Example:
 
@@ -169,218 +187,251 @@ curl -X POST "http://127.0.0.1:8000/upload" \
   -F "file=@medical_report.pdf"
 ```
 
-The backend saves the file into `backend/uploads/`, invokes the LangGraph
-workflow, and returns one of the response shapes below.
+The backend reads the file entirely into memory (no disk write), invokes the
+LangGraph workflow, and returns one of the shapes below.
 
-Accepted response:
+Accepted:
 
 ```json
 {
   "status": "accepted",
   "report": {
     "patient_info": {},
-    "lab_results": [
-      {
-        "test": "Glucose",
-        "value": 140,
-        "unit": "mg/dL",
-        "status": "High"
-      }
-    ],
-    "root_causes": "Possible causes and reasoning from the LLM",
-    "diet": "Personalized nutrition guidance from the LLM",
-    "summary": "Patient-friendly final summary",
+    "lab_results": [{ "test": "Glucose", "value": 140, "unit": "mg/dL", "status": "High" }],
+    "root_causes": "...",
+    "diet": "...",
+    "summary": "...",
     "takeaways": ["Key point 1", "Key point 2", "Key point 3"]
   }
 }
 ```
 
-Rejected response:
+Rejected:
 
 ```json
-{
-  "status": "rejected",
-  "reason": "Not a medical report"
-}
+{ "status": "rejected", "reason": "Not a medical report" }
 ```
 
-Error response:
+Error:
 
 ```json
-{
-  "status": "error",
-  "message": "final_report missing",
-  "debug": ["file_path", "raw_text"]
-}
+{ "status": "error", "message": "final_report missing", "debug": ["file_bytes", "file_name"] }
 ```
+
+---
 
 ## Supported Upload Types
 
-The active ingestion node supports:
+- `.pdf` — `pypdf.PdfReader` via `io.BytesIO`
+- `.docx` — `python-docx` via `io.BytesIO`
+- `.png` / `.jpg` / `.jpeg` — `pytesseract` OCR via Pillow
+- `.txt` — UTF-8 decode
 
-- `.pdf`
-- `.docx`
-- `.png`
-- `.jpg`
-- `.jpeg`
-- `.txt`
+Files are processed entirely in memory. The `uploads/` directory exists but is
+no longer written to by the active workflow.
 
-Extraction behavior:
+`services/document_ingestion.py` is an alternate helper that uses PyMuPDF and
+reads from a file path. It is not used by the active LangGraph workflow.
 
-- PDF: `pypdf.PdfReader`
-- DOCX: `python-docx`
-- PNG/JPG/JPEG: `pytesseract` OCR through Pillow
-- TXT: UTF-8 text read
-
-`services/document_ingestion.py` is an alternate helper that supports PDF,
-DOCX, and image extraction with PyMuPDF/Pillow/Tesseract, but the current
-LangGraph workflow uses `nodes/ingestion_node.py`.
+---
 
 ## LangGraph Workflow
 
-The workflow is defined in `backend/graph/workflow.py`.
+Defined in `backend/graph/workflow.py`.
 
 ```text
-Upload
+Upload (file_bytes + file_name in state)
   |
   v
 ingestion
   |
   v
-gate ----------------------------> END if rejected
+gate ──────────────────────────────> END  (if rejected)
   |
   v
 extract
  /     \
 v       v
-explain rootcause
+explain  rootcause
    \     /
     v   v
-     diet
+     diet  <──────────────────────────┐
+      |                               |
+      v                               │ needs_revision && revision_count < 3
+    safety                            │
+      |                               │
+      v                               │
+    critic ────────────────────────────┘
+      |
+      v (needs_revision == false OR revision_count >= 3)
+    synthesis
       |
       v
-    safety
-      |
-      v
-    critic
-   /      \
-  v        v
-diet     synthesis
- ^          |
- |          v
- +-- max 3 revisions, then END
+     END
 ```
 
-Workflow behavior by node:
+Node behavior:
 
-- `ingestion`: extracts raw text from the uploaded file.
-- `gate`: asks the LLM whether the text is a medical report. It rejects only
-  when the LLM returns exactly `NO`; otherwise it continues.
-- `extract`: asks the LLM for structured `ExtractionResult` JSON containing
-  lab results, medications, diagnoses, and an `is_structured` flag.
-- `explain`: turns extracted data into patient-friendly language.
-- `rootcause`: lists possible medical root causes and reasoning.
-- `diet`: builds a personalized diet plan from abnormal labs, root causes, and
-  any critic feedback.
-- `safety`: applies local contraindication rules to catch unsafe diet items for
-  high lab values.
-- `critic`: asks an LLM auditor to find contradictions, missed abnormal values,
-  and generic diet guidance.
-- `synthesis`: builds the final JSON report returned to the API caller.
+- `ingestion` — extracts raw text from `file_bytes` / `file_name` in state; no disk I/O.
+- `gate` — asks the LLM whether the text is a medical report; rejects only on exact `NO`.
+- `extract` — returns a structured `ExtractionResult` (lab results, medications, diagnoses, `is_structured` flag).
+- `explain` — turns extracted data into patient-friendly language.
+- `rootcause` — lists possible medical root causes with reasoning.
+- `diet` — builds a personalized diet plan from abnormal labs, root causes, and any critic feedback.
+- `safety` — applies local contraindication rules; sets `needs_revision` and `critic_feedback` on violations.
+- `critic` — LLM auditor checks for contradictions, missed abnormal values, and generic diet guidance; increments `revision_count`.
+- `synthesis` — assembles the final JSON report returned to the API caller.
 
-The critic can route back to `diet` when `needs_revision` is true. The loop is
-limited to three revision attempts before synthesis.
+The critic loop is capped at 3 revision attempts before forcing synthesis.
+
+---
 
 ## Backend Data Models
 
-`backend/models/medical.py` defines:
+`backend/models/medical.py`:
 
-- `LabResult`: test, numeric value, unit, and status.
-- `Medication`: name, dose, and frequency.
-- `GateResult`: result, confidence, and reason.
-- `ExtractionResult`: lab results, medications, diagnoses, and structure flag.
-- `CriticResult`: issues, severity, and revision flag.
+- `LabResult` — test, value, unit, status
+- `Medication` — name, dose, frequency
+- `GateResult` — result, confidence, reason
+- `ExtractionResult` — lab_results, medications, diagnosis, is_structured
+- `CriticResult` — issues_found, severity, needs_revision
 
-`backend/graph/state.py` defines the shared `MedifyState` keys used across
-the LangGraph nodes, including raw text, rejection details, extraction output,
-root-cause text, diet text, critic feedback, revision count, and final report.
+`backend/graph/state.py` — `MedifyState` keys:
+
+| Key | Type | Description |
+|---|---|---|
+| `file_bytes` | `bytes` | Raw uploaded file content |
+| `file_name` | `str` | Original filename (used to detect extension) |
+| `raw_text` | `str` | Extracted text from ingestion node |
+| `rejected` | `bool` | Set by gate node |
+| `rejection_reason` | `str` | Human-readable rejection message |
+| `extraction_result` | `ExtractionResult` | Structured clinical data |
+| `explanation_result` | `str` | Patient-friendly explanation |
+| `rootcause_result` | `str` | Root cause analysis text |
+| `diet_result` | `str` | Diet guidance text |
+| `critic_result` | `CriticResult` or `dict` | Audit result |
+| `critic_feedback` | `str` | Feedback passed back to diet node |
+| `revision_count` | `int` | Number of diet revision attempts |
+| `final_report` | `dict` | Assembled report returned to API |
+
+`backend/models/responses.py`:
+
+- `RejectedResponse` — status, stage, message
+- `AcceptedResponse` — status, filename, gate, structured_data
+
+---
 
 ## LLM Provider
 
-LLM calls are centralized in `backend/services/llm_provider.py`.
+Centralized in `backend/services/llm_provider.py`.
 
-Current fallback order:
+Fallback model order:
 
 1. `llama-3.3-70b-versatile`
 2. `llama-3.1-8b-instant`
 3. `gemma2-9b-it`
 
-`call_llm(prompt)` returns text from the first working Groq model.
-`call_llm_structured(prompt, model_class)` asks for JSON matching a Pydantic
-schema, strips Markdown fences if present, parses JSON, and falls back to an
-empty model instance when parsing or validation fails.
+- `call_llm(prompt)` — returns text from the first working Groq model.
+- `call_llm_structured(prompt, model_class)` — requests JSON matching a Pydantic schema, strips Markdown fences, parses, and falls back to an empty model instance on failure.
+
+---
 
 ## Safety Rules
 
-`backend/services/safety_rules.py` contains local contraindication checks for
-high lab values. Current high-value food checks include:
+`backend/services/safety_rules.py` — local contraindication checks for high lab values:
 
-- Potassium: banana, spinach, potato, tomato, avocado
-- Glucose: sugar, white bread, honey, soda, cake, candy
-- Sodium: salt, processed meat, canned soup, pickles
-- Cholesterol: fried food, butter, red meat, trans fat
-- Creatinine: high protein, excessive salt
+| Lab | Forbidden foods |
+|---|---|
+| Potassium | banana, spinach, potato, tomato, avocado |
+| Glucose | sugar, white bread, honey, soda, cake, candy |
+| Sodium | salt, processed meat, canned soup, pickles |
+| Cholesterol | fried food, butter, red meat, trans fat |
+| Creatinine | high protein, excessive salt |
 
-If the generated diet plan includes a forbidden item for a matching high lab
-value, `safety_node` sets critic feedback and requests a revision.
+If the diet plan contains a forbidden item for a matching high lab value,
+`safety_node` sets `critic_feedback` and `needs_revision: true`, triggering a
+revision loop.
+
+---
 
 ## Frontend Behavior
 
-`frontend/src/App.jsx` implements the full UI:
+### Routing (`App.jsx`)
 
-- File picker/dropzone for PDF, DOCX, PNG, JPG, JPEG, and TXT files.
-- Upload and analysis status states: idle, uploading, analyzing, success, and
-  error.
-- POST upload to `/api/upload`.
-- Rejected document card.
-- Accepted report dashboard with:
-  - clinical lab table
-  - patient-friendly summary
-  - key takeaways
-  - root-cause insight cards
-  - nutrition guidance grouped into avoid, recommended, and clinical notes
+React Router maps `/` to `Landing`. The standalone `UploadApp` page exists at
+`src/pages/UploadApp.jsx` but is not currently wired into the router.
 
-`frontend/src/styles.css` contains all visual styling, responsive layout, table
-styling, report cards, status pills, error states, and upload states.
+### Landing page (`pages/Landing.jsx`)
 
-## Local Files And Generated Data
+Composes: `Navbar`, `Hero`, `Features`, `HowItWorks`, `UseCases`, `TechStack`,
+`Testimonials`, `Footer`, and `UploadModal`.
 
-- `backend/.env` is for local secrets and is ignored by `backend/.gitignore`.
-- `backend/uploads/` stores uploaded files and is ignored by
-  `backend/.gitignore`.
-- `backend/venv/`, `backend/__pycache__/`, and Python bytecode are ignored by
-  `backend/.gitignore`.
-- `frontend/node_modules/` is not part of the source tree and should be
-  recreated with `npm install`.
+Clicking "Get Started" in the Navbar opens the `UploadModal` overlay.
 
-Uploaded files are saved locally and are not cleaned up automatically.
+### UploadModal (`components/UploadModal.jsx`)
+
+The primary user-facing upload and results component. Features:
+
+- Drag-and-drop or click-to-browse file picker (PDF, DOCX, PNG, JPG, JPEG, TXT)
+- Escape key and backdrop click to close
+- Body scroll lock while open
+- Upload phases: `idle` → `analyzing` → `done` / `rejected` / `error`
+- POST to `/api/upload` (uses `VITE_API_URL` env var in production)
+- Results dashboard: summary, key takeaways, lab results table with color-coded
+  status badges, root cause analysis, nutrition guidance
+- "New Report" button to reset state
+
+### UploadApp (`pages/UploadApp.jsx`)
+
+A standalone full-page version of the upload + results UI. Shares the same
+logic and layout as `UploadModal` but renders as a full page with a top `Navbar`.
+
+---
+
+## Environment Variables
+
+### Backend (`backend/.env`)
+
+```env
+GROQ_API_KEY=your_groq_api_key_here
+```
+
+### Frontend (`frontend/.env.production`)
+
+```env
+VITE_API_URL=https://your-backend-url.com
+```
+
+Leave `VITE_API_URL` unset (or empty) for local development — the Vite proxy
+handles `/api/*` routing automatically.
+
+---
+
+## Data Privacy & Storage
+
+Diagnyx does **not** persist any uploaded files or analysis results.
+
+- Uploaded files are read entirely into memory and discarded after the workflow completes. Nothing is written to disk.
+- Analysis results (lab values, summaries, diet plans) exist only in the server's memory for the duration of a single request. They are never saved to a database or file.
+- Every time the backend server restarts, all in-flight state is lost. There is no way to retrieve a previous report.
+- The `backend/uploads/` directory exists in the repository but is not written to by the active workflow.
+
+> If you close the browser tab or refresh the page, your results are gone. Download or copy anything you need before navigating away.
+
+---
 
 ## Known Limitations
 
-- The app is not a medical device and does not replace professional review.
-- The upload endpoint saves files before validation.
-- There is no authentication, persistence layer, rate limiting, file cleanup,
-  or user/session model.
-- The gate only rejects when the LLM response is exactly `NO`; ambiguous
-  responses continue through the workflow.
+- No authentication, rate limiting, session model, or persistence layer.
+- The gate rejects only on exact `NO`; ambiguous LLM responses continue through the workflow.
 - `diet_node` assumes `extraction_result` exists and has `lab_results`.
-- LLM outputs are prompt-dependent; structured parsing falls back to empty data
-  if JSON parsing fails.
-- `synthesis_node` falls back to `"Analysis complete."` if summary JSON parsing
-  fails.
-- No automated test suite is currently present.
-- Some UI text currently contains mojibake-style characters from encoded icon
-  strings in `frontend/src/App.jsx`.
+- LLM outputs are prompt-dependent; structured parsing falls back to empty data on failure.
+- `synthesis_node` falls back to `"Analysis complete."` if summary JSON parsing fails.
+- `services/document_ingestion.py` uses file paths and is not integrated into the active workflow.
+- No automated test suite.
+- `UploadApp` page is not currently registered in the React Router config.
+
+---
 
 ## Useful Commands
 

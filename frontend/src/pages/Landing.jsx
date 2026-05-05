@@ -6,6 +6,7 @@ import HowItWorks from '../components/HowItWorks'
 import UseCases from '../components/UseCases'
 import TechStack from '../components/TechStack'
 import Testimonials from '../components/Testimonials'
+import CTA from '../components/CTA'
 import Footer from '../components/Footer'
 import UploadModal from '../components/UploadModal'
 
@@ -16,12 +17,13 @@ export default function Landing() {
     <>
       <Navbar onGetStarted={() => setModalOpen(true)} />
       <main>
-        <Hero />
+        <Hero onGetStarted={() => setModalOpen(true)} />
         <Features />
         <HowItWorks />
         <UseCases />
         <TechStack />
         <Testimonials />
+        <CTA onGetStarted={() => setModalOpen(true)} />
       </main>
       <Footer />
       {modalOpen && <UploadModal onClose={() => setModalOpen(false)} />}

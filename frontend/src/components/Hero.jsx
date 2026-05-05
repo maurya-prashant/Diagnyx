@@ -1,79 +1,76 @@
-export default function Hero() {
+export default function Hero({ onGetStarted }) {
   return (
-    <section className="relative min-h-screen flex items-center pt-16 overflow-hidden noise-bg">
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[500px] bg-[#1D9E75]/10 rounded-full blur-[120px] pointer-events-none" />
-
-      <div className="relative max-w-6xl mx-auto px-6 py-24 grid lg:grid-cols-2 gap-16 items-center">
-        <div className="animate-fade-up">
-          <span className="inline-flex items-center gap-2 text-xs font-medium text-[#1D9E75] bg-[#1D9E75]/10 border border-[#1D9E75]/20 rounded-full px-3 py-1 mb-6">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#5DCAA5] animate-pulse" />
-            AI-Powered Medical Intelligence
-          </span>
-
-          <h1 className="text-5xl lg:text-6xl font-bold text-white leading-[1.1] tracking-tight mb-6">
-            Understand Your{' '}
-            <span className="gradient-text">Medical Reports</span>{' '}
-            Instantly
+    <section className="relative min-h-screen flex items-center pt-20 bg-white">
+      <div className="max-w-7xl mx-auto px-6 py-24 grid lg:grid-cols-2 gap-16 items-center">
+        <div className="animate-in">
+          <span className="section-label">AI Medical Intelligence</span>
+          
+          <h1 className="h1-premium mb-8">
+            Understand your <br />
+            <span className="text-neutral-400">medical reports</span> <br />
+            instantly.
           </h1>
 
-          <p className="text-lg text-white/70 leading-relaxed mb-8 max-w-lg">
-            Diagnyx uses an agentic AI workflow to extract, explain, and act on your lab results —
-            delivering patient-friendly summaries, root-cause insights, and personalized nutrition
-            guidance in seconds.
+          <p className="p-premium mb-10 max-w-lg">
+            Diagnyx uses an agentic AI workflow to extract, explain, and act on your lab results — delivering professional-grade health insights in seconds.
           </p>
 
           <div className="flex flex-wrap gap-4">
-            <a href="#how-it-works" className="text-sm font-medium text-white/80 border border-white/20 hover:border-[#1D9E75] hover:text-white px-6 py-3 rounded-xl transition-all">
-              See How It Works
+            <button onClick={onGetStarted} className="btn-premium px-8 py-3 text-base">
+              Start Analysis
+            </button>
+            <a href="#how-it-works" className="btn-outline px-8 py-3 text-base inline-flex items-center gap-2">
+              Learn More
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
             </a>
           </div>
 
-          <div className="mt-10 flex flex-wrap gap-6 text-xs text-white/40">
-            {['PDF · DOCX · PNG · JPG · TXT', 'LangGraph Agentic Workflow'].map(b => (
-              <span key={b} className="flex items-center gap-1.5">
-                <svg className="w-3.5 h-3.5 text-[#5DCAA5]" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
+          <div className="mt-16 flex flex-wrap gap-8 text-[11px] font-semibold uppercase tracking-widest text-neutral-300">
+            {['PDF · DOCX · Images', 'Agentic Workflow'].map(b => (
+              <span key={b} className="flex items-center gap-2">
+                <div className="w-1 h-1 bg-neutral-300 rounded-full" />
                 {b}
               </span>
             ))}
           </div>
         </div>
 
-        <div className="hidden lg:flex justify-center">
-          <div className="animate-float w-full max-w-sm">
-            <div className="animate-glow rounded-2xl border border-white/10 bg-white/10 p-6 shadow-2xl">
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                <p className="text-xs text-white/40 mb-0.5">Patient Report</p>
-                  <p className="text-sm font-semibold text-white">Blood Panel Analysis</p>
-                </div>
-                <span className="text-xs font-medium text-[#1D9E75] bg-[#1D9E75]/10 border border-[#1D9E75]/20 rounded-full px-2.5 py-1">Analyzed</span>
+        <div className="hidden lg:block relative animate-in [animation-delay:200ms]">
+          <div className="absolute -inset-4 bg-neutral-50 rounded-[2.5rem] -z-10" />
+          <div className="bg-white border border-neutral-100 shadow-2xl rounded-3xl p-8 max-w-md mx-auto">
+            <div className="flex items-center justify-between mb-8 pb-6 border-b border-neutral-50">
+              <div>
+                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-1">Analysis Status</p>
+                <p className="text-lg font-semibold text-black uppercase">Blood Panel</p>
               </div>
+              <div className="w-2.5 h-2.5 bg-black rounded-full animate-pulse" />
+            </div>
 
-              <div className="space-y-3 mb-5">
-                {[
-                  { test: 'Glucose',     value: '140 mg/dL', status: 'High',   color: 'text-[#E24B4A]' },
-                  { test: 'Hemoglobin', value: '11.2 g/dL', status: 'Low',    color: 'text-[#BA7517]' },
-                  { test: 'Creatinine', value: '0.9 mg/dL', status: 'Normal', color: 'text-[#1D9E75]' },
-                  { test: 'Cholesterol',value: '215 mg/dL', status: 'High',   color: 'text-[#E24B4A]' },
-                ].map(r => (
-                  <div key={r.test} className="flex items-center justify-between bg-white/10 rounded-lg px-3 py-2">
-                    <span className="text-xs text-white/60">{r.test}</span>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-mono text-white">{r.value}</span>
-                      <span className={`text-xs font-medium ${r.color}`}>{r.status}</span>
-                    </div>
+            <div className="space-y-4 mb-8">
+              {[
+                { test: 'Glucose',     value: '140', status: 'High', color: 'bg-black text-white' },
+                { test: 'Hemoglobin', value: '11.2', status: 'Low', color: 'border-neutral-200' },
+                { test: 'Creatinine', value: '0.9', status: 'Normal', color: 'bg-neutral-50 text-neutral-400' },
+              ].map(r => (
+                <div key={r.test} className="flex items-center justify-between p-4 rounded-xl border border-neutral-50 hover:border-neutral-200 transition-all group">
+                  <span className="text-sm font-medium text-neutral-500 group-hover:text-black">{r.test}</span>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-mono font-bold">{r.value}</span>
+                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md border ${r.color}`}>
+                      {r.status}
+                    </span>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
+            </div>
 
-              <div className="bg-[#1D9E75]/10 border border-[#1D9E75]/20 rounded-lg p-3">
-                <p className="text-xs text-[#5DCAA5] font-medium mb-1">AI Insight</p>
-                <p className="text-xs text-white/60 leading-relaxed">
-                  Elevated glucose and cholesterol suggest metabolic syndrome risk. Personalized diet plan generated.
-                </p>
-              </div>
+            <div className="bg-neutral-900 rounded-2xl p-6 text-white">
+              <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest mb-2">AI Insight</p>
+              <p className="text-sm leading-relaxed opacity-90">
+                Metabolic markers suggest risk factors that warrant clinical follow-up. Diet plan adjusted for glucose sensitivity.
+              </p>
             </div>
           </div>
         </div>

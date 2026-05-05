@@ -53,12 +53,25 @@
 
 from fastapi import FastAPI, UploadFile, File
 from graph.workflow import medify_graph
+import os
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",   # local react
+        
+                ],  
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.get("/")
 def home():
-    return {"message": "MEDIFY LangGraph running"}
+    return {"message": "Diagynx API running"}
 
 @app.post("/upload")
 async def upload_report(file: UploadFile = File(...)):
@@ -101,3 +114,5 @@ async def upload_report(file: UploadFile = File(...)):
         "status": "accepted",
         "report": report
     }
+    
+    
