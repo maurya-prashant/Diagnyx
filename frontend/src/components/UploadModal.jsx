@@ -51,7 +51,7 @@ export default function UploadModal({ onClose }) {
     form.append('file', file)
     try {
       const base = import.meta.env.VITE_API_URL ?? ''
-      const res = await fetch(`${base}/api/upload`, { method: 'POST', body: form })
+      const res = await fetch(`${base}/upload`, { method: 'POST', body: form })
       const data = await res.json()
       if (data.status === 'accepted') { setResult(data.report); setPhase('done') }
       else if (data.status === 'rejected') { setErrorMsg(data.reason ?? 'Not a medical report.'); setPhase('rejected') }
