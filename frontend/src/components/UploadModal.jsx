@@ -50,12 +50,32 @@ export default function UploadModal({ onClose }) {
     const form = new FormData()
     form.append('file', file)
     try {
-      const base = import.meta.env.VITE_API_URL ?? ''
-      const res = await fetch(`${base}/upload`, { method: 'POST', body: form })
+      const base = import.meta.env.VITE_API_URL || '/api'
+      const url = base.endsWith('/upload') ? base : `${base}/upload`
+      const res = await fetch(url, { method: 'POST', body: form })
+
+      if (!res.ok) {
+        let errMessage = `Server error (${res.status})`
+        try {
+          const errData = await res.json()
+          errMessage = errData.detail || errData.message || errData.reason || errMessage
+        } catch {}
+        setErrorMsg(typeof errMessage === 'object' ? JSON.stringify(errMessage) : errMessage)
+        setPhase('error')
+        return
+      }
+
       const data = await res.json()
-      if (data.status === 'accepted') { setResult(data.report); setPhase('done') }
-      else if (data.status === 'rejected') { setErrorMsg(data.reason ?? 'Not a medical report.'); setPhase('rejected') }
-      else { setErrorMsg(data.message ?? 'Something went wrong.'); setPhase('error') }
+      if (data.status === 'accepted') {
+        setResult(data.report)
+        setPhase('done')
+      } else if (data.status === 'rejected') {
+        setErrorMsg(data.reason ?? 'Not a medical report.')
+        setPhase('rejected')
+      } else {
+        setErrorMsg(data.message ?? 'Something went wrong.')
+        setPhase('error')
+      }
     } catch {
       setErrorMsg('Could not reach the server.')
       setPhase('error')

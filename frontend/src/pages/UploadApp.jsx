@@ -28,7 +28,21 @@ export default function UploadApp() {
     if (!file) return
     setPhase('analyzing')
     try {
-      const res = await fetch('/api/upload', { method: 'POST', body: new FormData().append('file', file) })
+      const formData = new FormData()
+      formData.append('file', file)
+      const base = import.meta.env.VITE_API_URL || '/api'
+      const url = base.endsWith('/upload') ? base : `${base}/upload`
+      const res = await fetch(url, { method: 'POST', body: formData })
+      if (!res.ok) {
+        let errMessage = `Server error (${res.status})`
+        try {
+          const errData = await res.json()
+          errMessage = errData.detail || errData.message || errData.reason || errMessage
+        } catch {}
+        setErrorMsg(typeof errMessage === 'object' ? JSON.stringify(errMessage) : errMessage)
+        setPhase('error')
+        return
+      }
       const data = await res.json()
       if (data.status === 'accepted') { setResult(data.report); setPhase('done') }
       else { setErrorMsg(data.reason ?? 'Error'); setPhase('error') }

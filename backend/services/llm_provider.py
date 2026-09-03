@@ -8,7 +8,11 @@ from pydantic import ValidationError
 
 load_dotenv()
 
-MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"]
+MODELS = [
+    "openai/gpt-oss-20b",
+    "qwen/qwen3.6-27b",
+    "qwen/qwen3.8-27b"
+]
 
 def call_llm(prompt: str) -> str:
 
